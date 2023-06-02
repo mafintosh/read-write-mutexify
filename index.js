@@ -1,62 +1,122 @@
-module.exports = class ReadWriteLock {
-  constructor () {
-    this.destroyed = false
+class WriteLock {
+  constructor (parent) {
     this.writing = false
+
+    this._waiting = []
+    this._parent = parent
+    this._wait = pushToQueue.bind(this, this._waiting)
+  }
+
+  get locked () {
+    return this.writing || this._parent.read.readers > 0
+  }
+
+  lock () {
+    if (this._parent._destroying) {
+      return Promise.reject(this._parent._destroyError)
+    }
+
+    if (this.writing === false && this._parent.read.readers === 0) {
+      this.writing = true
+      return Promise.resolve()
+    }
+
+    return new Promise(this._wait)
+  }
+
+  unlock () {
+    this.writing = false
+    this._parent._bump()
+  }
+
+  async flush () {
+    if (this.writing === false) return
+    try {
+      await this.lock()
+    } catch {
+      return
+    }
+    this.unlock()
+  }
+}
+
+class ReadLock {
+  constructor (parent) {
     this.readers = 0
 
-    this.waitingReads = []
-    this.waitingWrites = []
-
-    this._waitForWriteLockBound = pushToQueue.bind(this, this.waitingWrites)
-    this._waitForReadLockBound = pushToQueue.bind(this, this.waitingReads)
-
-    this._releaseWriteLockBound = this._releaseWriteLock.bind(this)
-    this._releaseReadLockBound = this._releaseReadLock.bind(this)
+    this._waiting = []
+    this._parent = parent
+    this._wait = pushToQueue.bind(this, this._waiting)
   }
 
-  write () {
-    if (this.writing === false && this.readers === 0) {
-      this.writing = true
-      return Promise.resolve(this._releaseWriteLockBound)
+  get locked () {
+    return this._parent.writing
+  }
+
+  lock () {
+    if (this._parent._destroying) {
+      return Promise.reject(this._parent._destroyError)
     }
 
-    return new Promise(this._waitForWriteLockBound)
-  }
-
-  read () {
-    if (this.writing === false) {
+    if (this._parent.write.writing === false) {
       this.readers++
-      return Promise.resolve(this._releaseReadLockBound)
+      return Promise.resolve()
     }
 
-    return new Promise(this._waitForReadLockBound)
+    return new Promise(this._wait)
   }
 
-  destroy () {
-    if (this.destroyed) return
-    this.destroyed = true
-    while (this.waitingReads.length) this.waitingReads.shift()[1](new Error('Lock destroyed'))
-    while (this.waitingWrites.length) this.waitingWrites.shift()[1](new Error('Lock destroyed'))
-  }
-
-  _releaseWriteLock () {
-    this.writing = false
-    this._bump()
-  }
-
-  _releaseReadLock () {
+  unlock () {
     this.readers--
-    this._bump()
+    this._parent._bump()
+  }
+
+  async flush () {
+    if (this.writing === false) return
+    try {
+      await this.lock()
+    } catch {
+      return
+    }
+    this.unlock()
+  }
+}
+
+module.exports = class ReadWriteLock {
+  constructor () {
+    this.read = new ReadLock(this)
+    this.write = new WriteLock(this)
+
+    this._destroyError = null
+    this._destroying = null
+  }
+
+  get destroyed () {
+    return !!this._destroying
+  }
+
+  destroy (err) {
+    if (this._destroying) return this._destroying
+
+    this._destroying = Promise.all([this.read.flush(), this.write.flush()])
+    this._destroyError = err || new Error('Mutex has been destroyed')
+
+    if (err) {
+      while (this.read._waiting) this._waiting.shift()[1](err)
+      while (this.write._waiting) this._waiting.shift()[1](err)
+    }
+
+    return this._destroying
   }
 
   _bump () {
-    if (this.writing === false && this.readers === 0 && this.waitingWrites.length > 0) {
-      this.writing = true
-      this.waitingWrites.shift()[0](this._releaseWriteLockBound)
+    if (this.write.writing === false && this.read.readers === 0 && this.write._waiting.length > 0) {
+      this.write.writing = true
+      this.write._waiting.shift()[0]()
     }
-    while (this.writing === false && this.waitingReads.length > 0) {
-      this.readers++
-      this.waitingReads.shift()[0](this._releaseReadLockBound)
+    while (this.write.writing === false && this.read._waiting.length > 0) {
+      this.read.readers++
+      this.read._waiting.shift()[0]()
     }
   }
 }
