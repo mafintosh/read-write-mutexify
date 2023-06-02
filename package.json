@@ -1,6 +1,6 @@
 {
   "name": "read-write-mutexify",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Like mutexify but with read/write locks",
   "main": "index.js",
   "scripts": {
