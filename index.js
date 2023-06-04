@@ -11,6 +11,10 @@ class WriteLock {
     return this.writing || this._parent.read.readers > 0
   }
 
+  get waiting () {
+    return this._waiting.length
+  }
+
   lock () {
     if (this._parent._destroying) {
       return Promise.reject(this._parent._destroyError)
@@ -51,6 +55,10 @@ class ReadLock {
 
   get locked () {
     return this._parent.writing
+  }
+
+  get waiting () {
+    return this._waiting.length
   }
 
   lock () {
