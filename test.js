@@ -25,7 +25,7 @@ test('only one read at the time', async function (t) {
     t.ok(released, 'only one writer active')
   })
 
-  await new Promise(resolve => setImmediate(resolve))
+  await new Promise((resolve) => setImmediate(resolve))
 
   rw.write.unlock()
   released = true
@@ -43,7 +43,7 @@ test('reads waits for writer', async function (t) {
     t.ok(released, 'read waited for writer')
   })
 
-  await new Promise(resolve => setImmediate(resolve))
+  await new Promise((resolve) => setImmediate(resolve))
 
   rw.write.unlock()
   released = true
@@ -62,11 +62,11 @@ test('writer waits for all reads', async function (t) {
     t.ok(released, 'write waited for all readers')
   })
 
-  await new Promise(resolve => setImmediate(resolve))
+  await new Promise((resolve) => setImmediate(resolve))
 
   rw.read.unlock()
 
-  await new Promise(resolve => setImmediate(resolve))
+  await new Promise((resolve) => setImmediate(resolve))
 
   rw.read.unlock()
   released = true

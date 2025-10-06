@@ -1,5 +1,5 @@
 class WriteLock {
-  constructor (parent) {
+  constructor(parent) {
     this.writing = false
 
     this._waiting = []
@@ -7,15 +7,15 @@ class WriteLock {
     this._wait = pushToQueue.bind(this, this._waiting)
   }
 
-  get locked () {
+  get locked() {
     return this.writing || this._parent.read.readers > 0
   }
 
-  get waiting () {
+  get waiting() {
     return this._waiting.length
   }
 
-  lock () {
+  lock() {
     if (this._parent._destroying) {
       return Promise.reject(this._parent._destroyError)
     }
@@ -28,12 +28,12 @@ class WriteLock {
     return new Promise(this._wait)
   }
 
-  unlock () {
+  unlock() {
     this.writing = false
     this._parent._bump()
   }
 
-  async flush () {
+  async flush() {
     if (this.writing === false) return
     try {
       await this.lock()
@@ -45,7 +45,7 @@ class WriteLock {
 }
 
 class ReadLock {
-  constructor (parent) {
+  constructor(parent) {
     this.readers = 0
 
     this._waiting = []
@@ -53,15 +53,15 @@ class ReadLock {
     this._wait = pushToQueue.bind(this, this._waiting)
   }
 
-  get locked () {
+  get locked() {
     return this._parent.writing
   }
 
-  get waiting () {
+  get waiting() {
     return this._waiting.length
   }
 
-  lock () {
+  lock() {
     if (this._parent._destroying) {
       return Promise.reject(this._parent._destroyError)
     }
@@ -74,12 +74,12 @@ class ReadLock {
     return new Promise(this._wait)
   }
 
-  unlock () {
+  unlock() {
     this.readers--
     this._parent._bump()
   }
 
-  async flush () {
+  async flush() {
     if (this.writing === false) return
     try {
       await this.lock()
@@ -91,7 +91,7 @@ class ReadLock {
 }
 
 module.exports = class ReadWriteLock {
-  constructor () {
+  constructor() {
     this.read = new ReadLock(this)
     this.write = new WriteLock(this)
 
@@ -99,11 +99,11 @@ module.exports = class ReadWriteLock {
     this._destroying = null
   }
 
-  get destroyed () {
+  get destroyed() {
     return !!this._destroying
   }
 
-  destroy (err) {
+  destroy(err) {
     if (this._destroying) return this._destroying
 
     this._destroying = Promise.all([this.read.flush(), this.write.flush()])
@@ -117,8 +117,12 @@ module.exports = class ReadWriteLock {
     return this._destroying
   }
 
-  _bump () {
-    if (this.write.writing === false && this.read.readers === 0 && this.write._waiting.length > 0) {
+  _bump() {
+    if (
+      this.write.writing === false &&
+      this.read.readers === 0 &&
+      this.write._waiting.length > 0
+    ) {
       this.write.writing = true
       this.write._waiting.shift()[0]()
     }
@@ -129,6 +133,6 @@ module.exports = class ReadWriteLock {
   }
 }
 
-function pushToQueue (queue, resolve, reject) {
+function pushToQueue(queue, resolve, reject) {
   queue.push([resolve, reject])
 }
