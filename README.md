@@ -8,7 +8,7 @@ npm install read-write-mutexify
 
 ## Usage
 
-``` js
+```js
 const RW = require('read-write-mutexify')
 
 const rw = new RW()
